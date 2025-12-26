@@ -24,6 +24,10 @@ export async function runAutomation() {
                 continue;
             }
 
+            page.once("dialog", async dialog => {
+                console.log("Alert", dialog.message());
+                await dialog.accept();
+            });
             await page.goto(registrationPageUrl, { waitUntil: "networkidle0" });
 
             // OE polling loop
@@ -33,10 +37,10 @@ export async function runAutomation() {
                     console.log("🔄 Refresh limit reached. Restarting from login...");
                     break; // restart outer loop
                 }
-                const oeId = await checkAvailableOE(page);
-                if (oeId) {
-                    console.log(`✅ OE available: ${oeId}`);
-                    const changed = await changeSubject(page, oeId);
+                const oeIds = await checkAvailableOE(page);
+                if (oeIds) {
+                    console.log(`✅ OE available: ${oeIds.join(', ')}`);
+                    const changed = await changeSubject(page, oeIds);
                     if (changed) {
                         console.log("🎉 Subject changed and saved successfully.");
                         await page.close();
@@ -102,11 +106,11 @@ async function getSemesterRegPageUrl(page) {
 // === Refresh Registration Page ===
 async function refreshRegistrationPage(page, url) {
     try {
-        await page.goto(url, { waitUntil: "networkidle0" });
         page.once("dialog", async dialog => {
             console.log("💾 Save alert:", dialog.message());
             await dialog.accept();
         });
+        await page.goto(url, { waitUntil: "networkidle0" });
         console.log("🔄 Page refreshed.");
     } catch (err) {
         console.error("❌ Failed to refresh page:", err);
@@ -116,24 +120,32 @@ async function refreshRegistrationPage(page, url) {
 // === Check Available OE Subjects ===
 async function checkAvailableOE(page) {
     const oeIds = [
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_0',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_1',
         'TabContainer1_TabPanel11_grdsubject_ChkIn_10',
-        'TabContainer1_TabPanel11_grdsubject_ChkIn_21'
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_21',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_23',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_24',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_25',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_26',
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_27',
     ];
 
+    const availableIds = [];
     for (const id of oeIds) {
         try {
             await page.waitForSelector(`#${id}`, { timeout: 3000 });
             const isEnabled = await page.$eval(`#${id}`, el => !el.disabled);
-            if (isEnabled) return id;
+            if (isEnabled) availableIds.push(id);
         } catch {
             // Not found or disabled
         }
     }
-    return null;
+    return availableIds.length > 0 ? availableIds : null;
 }
 
 // === Change Subject (Delete + Select + Save) ===
-async function changeSubject(page, checkboxId) {
+async function changeSubject(page, checkboxIds) {
     try {
         const deleteBtn = await page.$("#TabContainer1_TabPanel11_grddeleted_btnselect_4");
         if (deleteBtn) {
@@ -146,14 +158,18 @@ async function changeSubject(page, checkboxId) {
             await delay(1000);
         }
 
-        await page.waitForSelector(`#${checkboxId}`, { timeout: 5000 });
-        const checkbox = await page.$(`#${checkboxId}`);
-        if (!checkbox) {
-            console.log("❌ OE checkbox not found after delete.");
-            return false;
+        // Select all available OE checkboxes
+        for (const checkboxId of checkboxIds) {
+            await page.waitForSelector(`#${checkboxId}`, { timeout: 5000 });
+            const checkbox = await page.$(`#${checkboxId}`);
+            if (!checkbox) {
+                console.log(`❌ OE checkbox not found: ${checkboxId}`);
+                return false;
+            }
+            await checkbox.click();
+            console.log(`✅ Selected OE checkbox: ${checkboxId}`);
+            await delay(500); // Small delay between selections
         }
-        await checkbox.click();
-        console.log(`✅ Selected OE checkbox: ${checkboxId}`);
 
         const saveBtnSelector = "#TabContainer1_TabPanel11_btnregularsubject";
         await page.waitForSelector(saveBtnSelector, { timeout: 5000 });
