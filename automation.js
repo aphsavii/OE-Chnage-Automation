@@ -35,13 +35,13 @@ export async function runAutomation() {
                 }
                 const oeId = await checkAvailableOE(page);
                 if (oeId) {
-                    await notify(`✅ Registration Opened!!! Hurry up`);
                     console.log(`✅ OE available: ${oeId}`);
                     const changed = await changeSubject(page, oeId);
                     if (changed) {
                         console.log("🎉 Subject changed and saved successfully.");
                         await page.close();
                         await browser.close(); // ✅ Exit browser after success
+                        await notify(`✅ Registration Opened!!! Hurry up`);
                         return; // ✅ Exit entire script
                     } else {
                         console.log("⚠️ Failed to change subject. Restarting from login...");
@@ -117,7 +117,7 @@ async function refreshRegistrationPage(page, url) {
 async function checkAvailableOE(page) {
     const oeIds = [
         'TabContainer1_TabPanel11_grdsubject_ChkIn_10',
-        'TabContainer1_TabPanel11_grdsubject_ChkIn_22'
+        'TabContainer1_TabPanel11_grdsubject_ChkIn_21'
     ];
 
     for (const id of oeIds) {
